@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ROS2 State Observer - Build History</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f5f7fa;
+    color: #333;
+    min-height: 100vh;
+  }
+
+  /* Header */
+  .header {
+    background: #fff;
+    border-bottom: 1px solid #e0e4e8;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1a73e8;
+  }
+  .header .link-group {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+  }
+  .header a {
+    font-size: 13px;
+    color: #1a73e8;
+    text-decoration: none;
+    padding: 5px 14px;
+    border: 1px solid #1a73e8;
+    border-radius: 6px;
+    transition: background 0.15s;
+  }
+  .header a:hover {
+    background: #e8f0fe;
+  }
+
+  /* Container */
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 32px 24px 64px;
+  }
+
+  /* Section */
+  .section {
+    margin-bottom: 36px;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #999;
+    margin-bottom: 10px;
+  }
+
+  /* Instruction block (code block feel) */
+  .instruction {
+    background: #1e293b;
+    color: #e2e8f0;
+    border-radius: 10px;
+    padding: 20px 24px;
+    font-family: 'SF Mono', Monaco, Consolas, 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-x: auto;
+    position: relative;
+    margin-bottom: 8px;
+  }
+  .instruction .comment {
+    color: #64748b;
+  }
+  .instruction .keyword {
+    color: #7dd3fc;
+  }
+  .instruction .string {
+    color: #86efac;
+  }
+  .instruction .bullet {
+    color: #fbbf24;
+    font-weight: 700;
+  }
+  .instruction-caption {
+    font-size: 11px;
+    color: #aaa;
+    text-align: right;
+    margin-bottom: 32px;
+  }
+
+  /* Timeline */
+  .timeline {
+    position: relative;
+    padding-left: 28px;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 6px;
+    bottom: 6px;
+    width: 2px;
+    background: linear-gradient(to bottom, #1a73e8, #7c3aed, #059669);
+    border-radius: 2px;
+  }
+  .step {
+    position: relative;
+    margin-bottom: 24px;
+  }
+  .step:last-child { margin-bottom: 0; }
+  .step-dot {
+    position: absolute;
+    left: -28px;
+    top: 4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 2px #1a73e8;
+    background: #1a73e8;
+  }
+  .step:nth-child(3n+2) .step-dot {
+    box-shadow: 0 0 0 2px #7c3aed;
+    background: #7c3aed;
+  }
+  .step:nth-child(3n) .step-dot {
+    box-shadow: 0 0 0 2px #059669;
+    background: #059669;
+  }
+  .step-card {
+    background: #fff;
+    border: 1px solid #e0e4e8;
+    border-radius: 10px;
+    padding: 16px 20px;
+    transition: box-shadow 0.15s;
+  }
+  .step-card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  .step-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .step-tag {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .tag-plan { background: #e0e7ff; color: #4338ca; }
+  .tag-install { background: #fef3c7; color: #92400e; }
+  .tag-code { background: #dbeafe; color: #1e40af; }
+  .tag-fix { background: #fee2e2; color: #991b1b; }
+  .tag-test { background: #d1fae5; color: #065f46; }
+  .tag-result { background: #ede9fe; color: #5b21b6; }
+  .tag-feature { background: #fef3c7; color: #78350f; }
+
+  .step-body {
+    font-size: 13px;
+    color: #555;
+    line-height: 1.65;
+  }
+  .step-body code {
+    background: #f1f5f9;
+    color: #7c3aed;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 12px;
+  }
+  .step-body ul {
+    margin: 6px 0 0 16px;
+  }
+  .step-body li {
+    margin-bottom: 3px;
+  }
+  .step-file {
+    display: inline-block;
+    background: #f0fdf4;
+    color: #166534;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 11px;
+    margin: 1px 0;
+  }
+
+  /* Session divider */
+  .session-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 36px 0 20px;
+  }
+  .session-divider::before,
+  .session-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #d0d4d8;
+  }
+  .session-divider span {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #999;
+    white-space: nowrap;
+  }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    padding: 24px;
+    font-size: 12px;
+    color: #aaa;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>ROS2 State Observer &mdash; Build History</h1>
+  <div class="link-group">
+    <a href="architecture.html">Architecture</a>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- INSTRUCTION BLOCK - Session 1 -->
+  <div class="section">
+    <div class="section-label">User Instruction &mdash; Session 1</div>
+    <div class="instruction"><span class="comment"># ROS2 States 관찰</span>
+
+<span class="comment">### 주의</span>
+<span class="bullet">*</span> conda jazzy 환경에서 코드를 진행할것
+<span class="bullet">*</span> <span class="keyword">flask</span>를 사용할 것
+<span class="bullet">*</span> <span class="keyword">ros2 jazzy</span> 버전을 사용할 것
+<span class="bullet">*</span> front-end는 <span class="string">밝은 톤</span>일 것
+<span class="bullet">*</span> 아래 내용의 실행과 테스트를 위해 ros2의
+  <span class="keyword">demo_node_cpp</span>의 talker나 <span class="keyword">turtlesim</span>을 적절히 활용해줘
+
+<span class="comment">### 내용</span>
+<span class="bullet">*</span> 웹브라우저에서 현재 ROS2의 상태를 확인
+<span class="bullet">*</span> 먼저, <span class="keyword">ROS_DOMAIN_ID</span>를 지정하고, 활성화 버튼을 누르도록
+<span class="bullet">*</span> 한 세션에서는 <span class="keyword">topic</span>의 리스트를 보여줘.
+  이때 <span class="string">Hz</span>와 <span class="string">데이터 타입</span>도 보여줘.
+  topic을 구독하거나, 발행하는게 아니야. 상황만 관찰하는 거야.
+  그리고, topic이 <span class="string">pub</span>인지 <span class="string">sub</span>인지도 확인해줘.
+<span class="bullet">*</span> 또 한 세션에서는 <span class="keyword">service</span>를 보여줘.
+  역시 데이터 타입도 보여줘
+<span class="bullet">*</span> 역시 <span class="keyword">action</span>도 데이터 타입과 함께 보여줘
+<span class="bullet">*</span> 그리고 또 한 세션에는 <span class="keyword">tf</span>도 받아서 구독하도록 해줘.
+  단, tf는 개괄적이라도 <span class="string">parent</span>와 <span class="string">child</span>의
+  관계가 보이도록 해줘
+<span class="bullet">*</span> 화면을 간결하게 구성해줘.</div>
+    <div class="instruction-caption">Original instruction passed to Claude &mdash; Session 1</div>
+  </div>
+
+  <!-- TIMELINE - Session 1 -->
+  <div class="section">
+    <div class="section-label">Build Timeline &mdash; Session 1</div>
+    <div class="timeline">
+
+      <!-- Step 1 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-plan">Plan</span>
+            환경 탐색 및 아키텍처 설계
+          </div>
+          <div class="step-body">
+            <code>conda</code> 환경을 확인한 결과, <code>ros_jazzy</code> 환경에 <code>rclpy 7.1.8</code>, <code>tf2_ros_py</code>, <code>demo_nodes_cpp</code>, <code>turtlesim</code>이 설치되어 있음을 확인. Flask는 미설치 상태.
+            <br>하이브리드 아키텍처로 결정: <strong>rclpy graph API</strong> (토픽/서비스 조회) + <strong>subprocess</strong> (Hz 측정) + <strong>TF 구독</strong>.
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-install">Install</span>
+            Flask 설치
+          </div>
+          <div class="step-body">
+            <code>conda run -n ros_jazzy pip install flask</code> 실행.
+            Flask 3.1.3 및 의존 패키지(Jinja2, Werkzeug 등) 설치 완료.
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-code">Code</span>
+            ros_monitor.py 작성
+          </div>
+          <div class="step-body">
+            ROS2 모니터링 핵심 모듈 구현:
+            <ul>
+              <li><strong>RosMonitor 클래스</strong> &mdash; activate/deactivate로 rclpy 노드 생명주기 관리</li>
+              <li><strong>Graph API</strong> &mdash; <code>get_topic_names_and_types()</code>, <code>get_publishers_info_by_topic()</code> 등으로 구독 없이 토픽/서비스 관찰</li>
+              <li><strong>Hz 측정</strong> &mdash; <code>ros2 topic hz</code> subprocess를 백그라운드에서 순차 실행</li>
+              <li><strong>TF 구독</strong> &mdash; <code>/tf</code>, <code>/tf_static</code> 구독으로 parent-child 트리 구축</li>
+              <li><strong>내부 노드 필터링</strong> &mdash; <code>ros_web_monitor</code>, <code>_ros2cli_*</code> 노드를 pub/sub 카운트에서 제외</li>
+            </ul>
+            <span class="step-file">ros_monitor.py</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 4 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-code">Code</span>
+            app.py Flask 백엔드 작성
+          </div>
+          <div class="step-body">
+            API 엔드포인트 구현:
+            <ul>
+              <li><code>POST /api/activate</code> &mdash; domain ID 설정 후 모니터링 시작</li>
+              <li><code>POST /api/deactivate</code> &mdash; 모니터링 중지</li>
+              <li><code>GET /api/topics</code> &mdash; 토픽 목록 (타입, pub/sub, Hz)</li>
+              <li><code>GET /api/services</code> &mdash; 서비스 목록 (타입)</li>
+              <li><code>GET /api/actions</code> &mdash; 액션 목록 (타입)</li>
+              <li><code>GET /api/tf</code> &mdash; TF 트리 (parent-child)</li>
+            </ul>
+            <span class="step-file">app.py</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 5 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-code">Code</span>
+            index.html 대시보드 프론트엔드 작성
+          </div>
+          <div class="step-body">
+            밝은 톤의 단일 페이지 대시보드 구현:
+            <ul>
+              <li><strong>헤더</strong> &mdash; ROS_DOMAIN_ID 입력 + Activate/Deactivate 버튼 + 상태 뱃지</li>
+              <li><strong>4개 카드 패널</strong> &mdash; Topics, Services, Actions, TF Tree</li>
+              <li><strong>자동 갱신</strong> &mdash; 3초마다 전체 API 병렬 호출</li>
+              <li><strong>TF 시각화</strong> &mdash; CSS 기반 트리 구조 (루트 노드 강조, 가지선 연결)</li>
+            </ul>
+            <span class="step-file">templates/index.html</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 6 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-fix">Fix</span>
+            포트 충돌 해결
+          </div>
+          <div class="step-body">
+            macOS AirPlay Receiver가 포트 <code>5000</code>을 점유하고 있어 서버 시작 실패.
+            포트를 <code>5050</code>으로 변경하여 해결.
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 7 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-fix">Fix</span>
+            Hz 측정 로직 수정
+          </div>
+          <div class="step-body">
+            <code>ros2 topic hz</code>는 종료되지 않는 프로세스이므로 <code>subprocess.run(timeout=5)</code>가 예외를 발생시키며 출력을 버림.
+            <br><code>subprocess.Popen</code> + <code>communicate(timeout=4)</code>로 변경하여, 타임아웃 시 프로세스를 kill하고 그때까지의 출력에서 <code>average rate: X.XXX</code>를 파싱하도록 수정.
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 8 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-fix">Fix</span>
+            Graph 오염 문제 해결
+          </div>
+          <div class="step-body">
+            Hz 측정용 <code>ros2 topic hz</code> subprocess들이 임시 노드(<code>_ros2cli_*</code>)를 생성하여 pub/sub 카운트와 서비스 목록을 오염.
+            <br><code>_is_internal()</code> 필터 함수를 도입하여 <code>ros_web_monitor</code> 및 <code>_ros2cli_*</code> 노드를 모든 카운트와 목록에서 제외.
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 9 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-fix">Fix</span>
+            Action 감지 방식 변경
+          </div>
+          <div class="step-body">
+            <code>ros2 action list -t</code> 명령이 무한 대기(hang) 현상 발생.
+            <br>대안으로 rclpy graph API의 서비스 목록에서 <code>/_action/send_goal</code> 패턴을 찾아 액션을 감지하도록 변경.
+            타입은 <code>_SendGoal</code> 접미사를 제거하여 추출.
+            <br>Action 내부 토픽(<code>/_action/feedback</code>, <code>/_action/status</code>)과 서비스도 일반 목록에서 필터링.
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 10 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-test">Test</span>
+            통합 테스트
+          </div>
+          <div class="step-body">
+            <code>demo_nodes_cpp talker</code> + <code>turtlesim turtlesim_node</code>을 동시 실행하여 전체 기능 검증:
+            <ul>
+              <li><strong>Topics</strong> &mdash; /chatter (Pub 1, 1.0 Hz), /turtle1/pose, /turtle1/cmd_vel 등 8개 감지</li>
+              <li><strong>Services</strong> &mdash; /clear, /kill, /spawn, /turtle1/set_pen 등 정상 표시 (action 내부 서비스 필터됨)</li>
+              <li><strong>Actions</strong> &mdash; /turtle1/rotate_absolute [turtlesim/action/RotateAbsolute] 정상 감지</li>
+              <li><strong>TF</strong> &mdash; turtlesim은 TF 미발행으로 빈 상태 (정상)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 11 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-result">Result</span>
+            Session 1 최종 결과물
+          </div>
+          <div class="step-body">
+            <table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:6px;">
+              <tr style="background:#f8f9fa;">
+                <td style="padding:6px 10px;font-weight:600;border:1px solid #e5e7eb;">File</td>
+                <td style="padding:6px 10px;font-weight:600;border:1px solid #e5e7eb;">Role</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">app.py</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">Flask 서버 + API 라우트 (port 5050)</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">ros_monitor.py</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">rclpy graph API + Hz subprocess + TF 구독</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">templates/index.html</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">대시보드 프론트엔드 (밝은 톤, 4패널)</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">templates/history.html</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">빌드 히스토리 (Flask 경유)</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">run.sh</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">conda 환경 활성화 + 실행 스크립트</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /timeline session 1 -->
+  </div>
+
+  <!-- ========== SESSION 2 ========== -->
+  <div class="session-divider"><span>Session 2</span></div>
+
+  <!-- INSTRUCTION BLOCK - Session 2 -->
+  <div class="section">
+    <div class="section-label">User Instruction &mdash; Session 2</div>
+    <div class="instruction"><span class="comment"># 기능 확장 + 구조 문서화</span>
+
+<span class="bullet">*</span> <span class="keyword">topic</span>, <span class="keyword">action</span>, <span class="keyword">service</span>는
+  요청, 서비스, 구독, 발행, 서버 등 <span class="string">관련된 노드의 이름</span>도
+  보이게 기능을 추가해줘.
+<span class="bullet">*</span> 단, 노드를 갑자기 다 보여주면 화면이 지저분할테니
+  약간 <span class="string">펼침 메뉴</span> 느낌으로 고민해줘.
+<span class="bullet">*</span> 정보 갱신 주기는 <span class="keyword">5초</span>로 해줘.
+<span class="bullet">*</span> <span class="keyword">history.html</span>의 위치는 현재 작업 폴더인
+  <span class="string">ros_states</span>로 옮겨줘.
+<span class="bullet">*</span> history.html과 <span class="keyword">flask</span>와는 무관하게 만들어줘.
+<span class="bullet">*</span> 현재 history.html의 규칙을 지키면서
+  최신으로 이번 지령 포함해서 업데이트 해줘.
+<span class="bullet">*</span> 코드의 구조를 설명하는 <span class="keyword">html</span>도 만들어줘.
+  <span class="string">블록선도</span>나 <span class="string">다이어그램</span>을 충분히 활용해줘.</div>
+    <div class="instruction-caption">Instruction passed to Claude &mdash; Session 2</div>
+  </div>
+
+  <!-- TIMELINE - Session 2 -->
+  <div class="section">
+    <div class="section-label">Build Timeline &mdash; Session 2</div>
+    <div class="timeline">
+
+      <!-- Step 12 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-feature">Feature</span>
+            노드 이름 표시 기능 (펼침 메뉴)
+          </div>
+          <div class="step-body">
+            <strong>백엔드</strong> (<span class="step-file">ros_monitor.py</span>):
+            <ul>
+              <li><code>_build_node_maps()</code> 메서드 추가 &mdash; 전체 노드를 순회하여 service &rarr; server_nodes, client_nodes 매핑 구축</li>
+              <li><code>get_topics()</code> &mdash; <code>pub_nodes</code>, <code>sub_nodes</code> (발행/구독 노드 이름) 추가 반환</li>
+              <li><code>get_services()</code> &mdash; <code>server_nodes</code>, <code>client_nodes</code> 추가 반환</li>
+              <li><code>get_actions()</code> &mdash; <code>server_nodes</code>, <code>client_nodes</code> 추가 반환</li>
+            </ul>
+            <strong>프론트엔드</strong> (<span class="step-file">templates/index.html</span>):
+            <ul>
+              <li>각 행에 <code>&#9654;</code> 화살표 토글 &mdash; 클릭 시 노드 상세 행이 펼쳐짐/접힘</li>
+              <li>펼침 상태는 갱신 주기에도 유지 (<code>expanded</code> Set으로 추적)</li>
+              <li>노드 이름을 <code>.node-name</code> 뱃지로 표시 (Pub=파랑, Sub/Client=노랑)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 13 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-fix">Fix</span>
+            갱신 주기 변경
+          </div>
+          <div class="step-body">
+            <code>setInterval(refreshAll, 3000)</code> &rarr; <code>setInterval(refreshAll, 5000)</code>으로 변경.
+            <br>갱신 주기를 3초에서 <strong>5초</strong>로 늘려 네트워크/CPU 부담 감소.
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 14 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-code">Code</span>
+            history.html 독립화 및 이동
+          </div>
+          <div class="step-body">
+            <ul>
+              <li><span class="step-file">templates/history.html</span> &rarr; <span class="step-file">history.html</span> (프로젝트 루트로 이동)</li>
+              <li>Flask 라우트 <code>/history</code> 제거 &mdash; 독립 HTML로 브라우저에서 직접 열기</li>
+              <li>Session 2 지령 및 타임라인 추가</li>
+              <li>기존 타임라인 규칙(태그, 색상, 코드블록 스타일) 유지</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 15 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-code">Code</span>
+            architecture.html 작성
+          </div>
+          <div class="step-body">
+            코드 구조를 설명하는 독립 HTML 페이지 생성:
+            <ul>
+              <li><strong>시스템 아키텍처</strong> &mdash; 전체 블록선도 (Browser &harr; Flask &harr; RosMonitor &harr; ROS2)</li>
+              <li><strong>파일 구조</strong> &mdash; 트리 다이어그램</li>
+              <li><strong>데이터 흐름</strong> &mdash; Topics/Services/Actions/TF 각각의 수집 경로</li>
+              <li><strong>스레딩 모델</strong> &mdash; Main/Spin/Hz 스레드 다이어그램</li>
+              <li><strong>API 레퍼런스</strong> &mdash; 전체 엔드포인트 테이블</li>
+            </ul>
+            <span class="step-file">architecture.html</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 16 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-result">Result</span>
+            Session 2 최종 결과물
+          </div>
+          <div class="step-body">
+            <table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:6px;">
+              <tr style="background:#f8f9fa;">
+                <td style="padding:6px 10px;font-weight:600;border:1px solid #e5e7eb;">File</td>
+                <td style="padding:6px 10px;font-weight:600;border:1px solid #e5e7eb;">Role</td>
+                <td style="padding:6px 10px;font-weight:600;border:1px solid #e5e7eb;">Changed</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">app.py</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">Flask 서버 + API 라우트 (port 5050)</td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">/history 라우트 제거</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">ros_monitor.py</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">rclpy graph API + Hz + TF + 노드 매핑</td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">_build_node_maps(), 노드 이름 반환</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">templates/index.html</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">대시보드 (펼침 메뉴, 5초 갱신)</td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">expandable rows, 5s interval</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">history.html</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">빌드 히스토리 (독립 HTML)</td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">Flask 분리, 루트로 이동, Session 2 추가</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">architecture.html</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">코드 구조 다이어그램 (독립 HTML)</td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">신규 생성</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">run.sh</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">conda 환경 활성화 + 실행 스크립트</td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">변경 없음</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 17 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-fix">Fix</span>
+            architecture.html 파일 트리 줄바꿈 수정
+          </div>
+          <div class="step-body">
+            <code>.file-tree</code> CSS에 <code>white-space: pre</code>가 누락되어 파일 트리 다이어그램이 한 줄로 렌더링되는 문제.
+            <br><code>white-space: pre; overflow-x: auto;</code> 추가하여 소스 코드의 줄바꿈이 브라우저에서 그대로 표시되도록 수정.
+            <br><span class="step-file">architecture.html</span>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /timeline session 2 -->
+  </div>
+
+  <!-- ========== SESSION 3 ========== -->
+  <div class="session-divider"><span>Session 3</span></div>
+
+  <!-- INSTRUCTION BLOCK - Session 3 -->
+  <div class="section">
+    <div class="section-label">User Instruction &mdash; Session 3</div>
+    <div class="instruction"><span class="comment"># 영문화 + GitHub 업로드 준비</span>
+
+<span class="bullet">*</span> <span class="keyword">history.html</span>와 <span class="keyword">architecture.html</span>은
+  <span class="string">한글</span>로 두고, 나머지 실행하는 코드들은 모두 <span class="string">영어</span>로 변경
+<span class="bullet">*</span> 제목도, 메뉴도, 설명도 영어로
+<span class="bullet">*</span> <span class="keyword">GitHub</span>에 업로드 예정이라
+  영문 버전의 <span class="keyword">README.md</span>도 만들 것
+<span class="bullet">*</span> 특히 <span class="string">설치 및 사용법</span>을 잘 정리할 것
+<span class="bullet">*</span> 이 지시도 <span class="keyword">history.html</span>에 업데이트할 것
+<span class="bullet">*</span> history.html에는 <span class="string">한글</span>로 작업할 것</div>
+    <div class="instruction-caption">Instruction passed to Claude &mdash; Session 3</div>
+  </div>
+
+  <!-- TIMELINE - Session 3 -->
+  <div class="section">
+    <div class="section-label">Build Timeline &mdash; Session 3</div>
+    <div class="timeline">
+
+      <!-- Step 18 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-plan">Plan</span>
+            영문화 범위 분석
+          </div>
+          <div class="step-body">
+            전체 프로젝트 파일을 탐색한 결과, 실행 코드 파일들(<code>app.py</code>, <code>ros_monitor.py</code>, <code>templates/index.html</code>, <code>run.sh</code>)은 이미 <strong>영어</strong>로 작성되어 있음을 확인.
+            <br>문서 파일(<code>history.html</code>, <code>architecture.html</code>)만 한글 — 이들은 한글 유지 대상.
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 19 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-code">Code</span>
+            README.md 영문 작성
+          </div>
+          <div class="step-body">
+            GitHub 업로드를 위한 영문 README.md 신규 생성:
+            <ul>
+              <li><strong>Features</strong> &mdash; Topics, Services, Actions, TF Tree, Expandable Rows 등 주요 기능 요약</li>
+              <li><strong>Architecture</strong> &mdash; 시스템 블록선도 (ASCII)</li>
+              <li><strong>Installation</strong> &mdash; Conda 방식 / System ROS2 방식 두 가지 설치법</li>
+              <li><strong>Usage</strong> &mdash; Quick Start (<code>run.sh</code>), Manual Start, 대시보드 조작법, 데모 노드 테스트 방법</li>
+              <li><strong>API Reference</strong> &mdash; 전체 엔드포인트 테이블</li>
+              <li><strong>How It Works</strong> &mdash; Graph API, Hz 측정, TF 구독, 스레딩 모델 설명</li>
+            </ul>
+            <span class="step-file">README.md</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 20 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-code">Code</span>
+            history.html Session 3 추가
+          </div>
+          <div class="step-body">
+            이번 세션의 지령 및 타임라인을 history.html에 추가:
+            <ul>
+              <li>Session 3 구분선 및 지령 블록 (한글)</li>
+              <li>영문화 범위 분석, README.md 작성, history.html 업데이트 타임라인</li>
+              <li>최종 결과물 테이블 업데이트</li>
+            </ul>
+            <span class="step-file">history.html</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 21 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-result">Result</span>
+            Session 3 최종 결과물
+          </div>
+          <div class="step-body">
+            <table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:6px;">
+              <tr style="background:#f8f9fa;">
+                <td style="padding:6px 10px;font-weight:600;border:1px solid #e5e7eb;">File</td>
+                <td style="padding:6px 10px;font-weight:600;border:1px solid #e5e7eb;">Role</td>
+                <td style="padding:6px 10px;font-weight:600;border:1px solid #e5e7eb;">Changed</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">README.md</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">GitHub용 영문 프로젝트 문서</td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">신규 생성</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">history.html</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">빌드 히스토리 (독립 HTML)</td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">Session 3 지령 및 타임라인 추가</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">app.py</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">Flask 서버 + API 라우트 (port 5050)</td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">변경 없음 (이미 영문)</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">ros_monitor.py</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">rclpy graph API + Hz + TF + 노드 매핑</td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">변경 없음 (이미 영문)</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">templates/index.html</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">대시보드 (펼침 메뉴, 5초 갱신)</td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">변경 없음 (이미 영문)</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">run.sh</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">conda 환경 활성화 + 실행 스크립트</td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">변경 없음 (이미 영문)</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">architecture.html</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">코드 구조 다이어그램 (독립 HTML)</td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">변경 없음 (한글 유지)</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /timeline session 3 -->
+  </div>
+
+  <!-- ========== SESSION 4 ========== -->
+  <div class="session-divider"><span>Session 4</span></div>
+
+  <!-- INSTRUCTION BLOCK - Session 4 -->
+  <div class="section">
+    <div class="section-label">User Instruction &mdash; Session 4</div>
+    <div class="instruction"><span class="comment"># Refresh 버튼 추가</span>
+
+<span class="bullet">*</span> <span class="keyword">Refresh</span> 버튼을 추가할 것
+<span class="bullet">*</span> 5초 간격을 기다리지 않고, 사용자가 바로
+  <span class="string">현재 상황을 알고 싶을 때</span> 쓸 수 있도록
+<span class="bullet">*</span> front end에도 기능적으로도 잘 반영
+<span class="bullet">*</span> 영문 <span class="keyword">README</span>와, 한글 <span class="keyword">architecture</span>,
+  한글 <span class="keyword">history</span>에도 각각 잘 반영</div>
+    <div class="instruction-caption">Instruction passed to Claude &mdash; Session 4</div>
+  </div>
+
+  <!-- TIMELINE - Session 4 -->
+  <div class="section">
+    <div class="section-label">Build Timeline &mdash; Session 4</div>
+    <div class="timeline">
+
+      <!-- Step 22 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-feature">Feature</span>
+            Refresh 버튼 프론트엔드 구현
+          </div>
+          <div class="step-body">
+            <span class="step-file">templates/index.html</span> 헤더에 Refresh 버튼 추가:
+            <ul>
+              <li><strong>위치</strong> &mdash; Deactivate 버튼 옆, 모니터링 활성화 시에만 표시</li>
+              <li><strong>동작</strong> &mdash; 클릭 시 <code>manualRefresh()</code> 호출 &rarr; 즉시 <code>refreshAll()</code> 실행</li>
+              <li><strong>타이머 리셋</strong> &mdash; 기존 5초 타이머 정지 후 재시작, 다음 자동 갱신까지 5초 확보</li>
+              <li><strong>시각 피드백</strong> &mdash; 버튼의 &#8635; 아이콘이 회전 애니메이션 + 클릭 중 disabled 처리</li>
+              <li><strong>스타일</strong> &mdash; 아웃라인 스타일 (<code>border: 1px solid #1a73e8</code>) 기존 버튼과 조화</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 23 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-code">Code</span>
+            문서 업데이트
+          </div>
+          <div class="step-body">
+            3개 문서에 Refresh 기능 반영:
+            <ul>
+              <li><span class="step-file">README.md</span> &mdash; Features에 Manual Refresh 항목 추가, Dashboard Usage에 Refresh 단계 추가</li>
+              <li><span class="step-file">architecture.html</span> &mdash; System Architecture 블록, Frontend Architecture 섹션에 수동 갱신 설명 추가</li>
+              <li><span class="step-file">history.html</span> &mdash; Session 4 지령 및 타임라인 추가 (현재 문서)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 24 -->
+      <div class="step">
+        <div class="step-dot"></div>
+        <div class="step-card">
+          <div class="step-title">
+            <span class="step-tag tag-result">Result</span>
+            Session 4 최종 결과물
+          </div>
+          <div class="step-body">
+            <table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:6px;">
+              <tr style="background:#f8f9fa;">
+                <td style="padding:6px 10px;font-weight:600;border:1px solid #e5e7eb;">File</td>
+                <td style="padding:6px 10px;font-weight:600;border:1px solid #e5e7eb;">Role</td>
+                <td style="padding:6px 10px;font-weight:600;border:1px solid #e5e7eb;">Changed</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">templates/index.html</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">대시보드 (펼침 메뉴, 5초 갱신)</td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">Refresh 버튼 + manualRefresh() + 회전 애니메이션 추가</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">README.md</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">GitHub용 영문 프로젝트 문서</td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">Manual Refresh 기능 설명 추가</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">architecture.html</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">코드 구조 다이어그램 (독립 HTML)</td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">수동 갱신 설명 추가 (헤더, 프론트엔드 섹션)</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;"><span class="step-file">history.html</span></td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">빌드 히스토리 (독립 HTML)</td>
+                <td style="padding:5px 10px;border:1px solid #e5e7eb;">Session 4 지령 및 타임라인 추가</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /timeline session 4 -->
+  </div>
+
+</div>
+
+<div class="footer">
+  ROS2 State Observer &mdash; Built with Claude
+</div>
+
+</body>
+</html>

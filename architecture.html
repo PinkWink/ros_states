@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ROS2 State Observer - Architecture</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f5f7fa;
+    color: #333;
+    min-height: 100vh;
+  }
+
+  /* Header */
+  .header {
+    background: #fff;
+    border-bottom: 1px solid #e0e4e8;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1a73e8;
+  }
+  .header .link-group {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+  }
+  .header a {
+    font-size: 13px;
+    color: #1a73e8;
+    text-decoration: none;
+    padding: 5px 14px;
+    border: 1px solid #1a73e8;
+    border-radius: 6px;
+    transition: background 0.15s;
+  }
+  .header a:hover { background: #e8f0fe; }
+
+  /* Container */
+  .container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 32px 24px 64px;
+  }
+
+  /* Section */
+  .section {
+    margin-bottom: 48px;
+  }
+  .section-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 6px;
+  }
+  .section-subtitle {
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 20px;
+  }
+
+  /* Card */
+  .card {
+    background: #fff;
+    border: 1px solid #e0e4e8;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+
+  /* ===== BLOCK DIAGRAM STYLES ===== */
+
+  /* Generic diagram container */
+  .diagram {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 20px 0;
+  }
+  .diagram-h {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  /* Block */
+  .block {
+    border: 2px solid #d0d4d8;
+    border-radius: 10px;
+    padding: 12px 20px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 140px;
+    position: relative;
+  }
+  .block-sm {
+    padding: 8px 14px;
+    font-size: 12px;
+    min-width: 110px;
+  }
+  .block-label {
+    font-size: 10px;
+    font-weight: 400;
+    color: #888;
+    display: block;
+    margin-top: 2px;
+  }
+
+  /* Block colors */
+  .b-browser   { background: #fef3c7; border-color: #f59e0b; color: #92400e; }
+  .b-flask     { background: #dbeafe; border-color: #3b82f6; color: #1e40af; }
+  .b-monitor   { background: #d1fae5; border-color: #10b981; color: #065f46; }
+  .b-ros       { background: #ede9fe; border-color: #8b5cf6; color: #5b21b6; }
+  .b-thread    { background: #fce4ec; border-color: #e91e63; color: #880e4f; }
+  .b-api       { background: #e0f2fe; border-color: #0ea5e9; color: #0369a1; }
+  .b-data      { background: #f0fdf4; border-color: #22c55e; color: #166534; }
+  .b-file      { background: #f8fafc; border-color: #94a3b8; color: #475569; }
+  .b-gray      { background: #f1f5f9; border-color: #cbd5e1; color: #64748b; }
+
+  /* Arrows */
+  .arrow-down, .arrow-up, .arrow-right, .arrow-left, .arrow-bidir {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    font-size: 12px;
+    padding: 4px 0;
+    gap: 4px;
+  }
+  .arrow-down::before { content: ''; display: block; width: 2px; height: 18px; background: #cbd5e1; }
+  .arrow-down .arrow-head { font-size: 14px; line-height: 1; }
+  .arrow-down {
+    flex-direction: column;
+  }
+  .arrow-bidir {
+    flex-direction: column;
+    padding: 2px 0;
+  }
+  .arrow-bidir::before {
+    content: '';
+    display: block;
+    width: 2px;
+    height: 14px;
+    background: #cbd5e1;
+  }
+  .arrow-bidir-label {
+    font-size: 10px;
+    color: #94a3b8;
+    font-weight: 500;
+  }
+  .arrow-right-h {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    color: #94a3b8;
+    padding: 0 6px;
+    font-size: 16px;
+  }
+
+  /* Grouped blocks */
+  .block-group {
+    border: 2px dashed #d0d4d8;
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .block-group-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #94a3b8;
+    margin-bottom: 6px;
+    text-align: center;
+  }
+
+  /* File tree */
+  .file-tree {
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.8;
+    background: #1e293b;
+    color: #e2e8f0;
+    border-radius: 10px;
+    padding: 20px 24px;
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .file-tree .dir { color: #7dd3fc; font-weight: 600; }
+  .file-tree .file { color: #86efac; }
+  .file-tree .comment { color: #64748b; }
+  .file-tree .indent { display: inline-block; width: 24px; }
+  .file-tree .pipe { color: #475569; }
+
+  /* Data flow table */
+  .flow-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .flow-table th {
+    text-align: left;
+    padding: 10px 14px;
+    background: #f8f9fa;
+    border: 1px solid #e5e7eb;
+    font-weight: 600;
+    font-size: 12px;
+    color: #555;
+  }
+  .flow-table td {
+    padding: 10px 14px;
+    border: 1px solid #e5e7eb;
+    vertical-align: top;
+    line-height: 1.5;
+  }
+  .flow-table code {
+    background: #f1f5f9;
+    color: #7c3aed;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 12px;
+  }
+  .flow-table .method-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+  }
+  .method-get { background: #d1fae5; color: #065f46; }
+  .method-post { background: #fef3c7; color: #92400e; }
+
+  /* Thread diagram */
+  .thread-diagram {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .thread-lane {
+    flex: 1;
+    min-width: 200px;
+    max-width: 280px;
+  }
+  .thread-title {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 8px;
+    border-radius: 8px 8px 0 0;
+    color: #fff;
+  }
+  .thread-main .thread-title { background: #3b82f6; }
+  .thread-spin .thread-title { background: #10b981; }
+  .thread-hz .thread-title { background: #f59e0b; }
+  .thread-body {
+    border: 2px solid #e0e4e8;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    padding: 12px;
+    font-size: 12px;
+    line-height: 1.8;
+    background: #fff;
+  }
+  .thread-body .step-item {
+    padding: 4px 8px;
+    margin: 4px 0;
+    background: #f8f9fa;
+    border-radius: 4px;
+    border-left: 3px solid #d0d4d8;
+  }
+  .thread-main .step-item { border-left-color: #3b82f6; }
+  .thread-spin .step-item { border-left-color: #10b981; }
+  .thread-hz .step-item { border-left-color: #f59e0b; }
+  .thread-body .loop-marker {
+    font-size: 10px;
+    color: #888;
+    text-align: center;
+    padding: 2px;
+  }
+
+  /* Footnote */
+  .footnote {
+    font-size: 11px;
+    color: #aaa;
+    margin-top: 8px;
+  }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    padding: 24px;
+    font-size: 12px;
+    color: #aaa;
+  }
+
+  /* Data collect diagram */
+  .collect-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 700px) {
+    .collect-grid { grid-template-columns: 1fr; }
+  }
+  .collect-card {
+    border: 1px solid #e0e4e8;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .collect-header {
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+  }
+  .collect-topics .collect-header { background: #3b82f6; }
+  .collect-services .collect-header { background: #8b5cf6; }
+  .collect-actions .collect-header { background: #f59e0b; }
+  .collect-tf .collect-header { background: #10b981; }
+  .collect-body {
+    padding: 12px 14px;
+    font-size: 12px;
+    line-height: 1.7;
+    background: #fff;
+  }
+  .collect-body .path-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 4px 0;
+  }
+  .collect-body .path-num {
+    background: #e0e4e8;
+    color: #555;
+    font-size: 10px;
+    font-weight: 700;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .collect-body code {
+    background: #f1f5f9;
+    color: #7c3aed;
+    padding: 0 4px;
+    border-radius: 3px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 11px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>ROS2 State Observer &mdash; Architecture</h1>
+  <div class="link-group">
+    <a href="history.html">History</a>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ===== 1. SYSTEM OVERVIEW ===== -->
+  <div class="section">
+    <div class="section-title">1. System Architecture</div>
+    <div class="section-subtitle">전체 시스템 블록선도 &mdash; Browser, Flask, RosMonitor, ROS2 Network</div>
+
+    <div class="card">
+      <div class="diagram">
+
+        <!-- Browser -->
+        <div class="block b-browser">
+          Browser (index.html)
+          <span class="block-label">JavaScript &mdash; 5초 자동 갱신 + 수동 Refresh</span>
+        </div>
+
+        <div class="arrow-bidir">
+          <span class="arrow-bidir-label">HTTP JSON (fetch)</span>
+          <span>&#8593; &#8595;</span>
+        </div>
+
+        <!-- Flask -->
+        <div class="block b-flask">
+          Flask Server (app.py)
+          <span class="block-label">port 5050 &mdash; API 라우팅</span>
+        </div>
+
+        <div class="arrow-bidir">
+          <span class="arrow-bidir-label">Python method call</span>
+          <span>&#8593; &#8595;</span>
+        </div>
+
+        <!-- ROS Monitor -->
+        <div class="block b-monitor" style="min-width: 260px;">
+          RosMonitor (ros_monitor.py)
+          <span class="block-label">rclpy Graph API + subprocess + TF sub</span>
+        </div>
+
+        <div class="arrow-bidir">
+          <span class="arrow-bidir-label">DDS / rclpy</span>
+          <span>&#8593; &#8595;</span>
+        </div>
+
+        <!-- ROS2 Network -->
+        <div class="block-group" style="border-color: #8b5cf6;">
+          <div class="block block-sm b-ros">Topics</div>
+          <div class="block block-sm b-ros">Services</div>
+          <div class="block block-sm b-ros">Actions</div>
+          <div class="block block-sm b-ros">TF</div>
+        </div>
+        <div style="text-align:center; margin-top:4px;">
+          <span style="font-size:11px; color:#8b5cf6; font-weight:600;">ROS2 Network (DDS)</span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 2. FILE STRUCTURE ===== -->
+  <div class="section">
+    <div class="section-title">2. File Structure</div>
+    <div class="section-subtitle">프로젝트 파일 트리 및 역할</div>
+
+    <div class="file-tree">
+<span class="dir">ros_states/</span>
+<span class="pipe">|</span>
+<span class="pipe">|--</span> <span class="file">app.py</span>              <span class="comment"># Flask 웹 서버 + API 엔드포인트 (port 5050)</span>
+<span class="pipe">|--</span> <span class="file">ros_monitor.py</span>      <span class="comment"># ROS2 모니터링 코어 (rclpy + subprocess + TF)</span>
+<span class="pipe">|--</span> <span class="file">run.sh</span>              <span class="comment"># conda 환경 활성화 + 서버 실행 스크립트</span>
+<span class="pipe">|--</span> <span class="file">history.html</span>        <span class="comment"># 빌드 히스토리 (독립 HTML, Flask 무관)</span>
+<span class="pipe">|--</span> <span class="file">architecture.html</span>   <span class="comment"># 코드 구조 다이어그램 (현재 페이지)</span>
+<span class="pipe">|</span>
+<span class="pipe">|--</span> <span class="dir">templates/</span>
+<span class="pipe">|   |--</span> <span class="file">index.html</span>      <span class="comment"># 대시보드 프론트엔드 (Flask 템플릿)</span>
+    </div>
+  </div>
+
+  <!-- ===== 3. DATA COLLECTION PATHS ===== -->
+  <div class="section">
+    <div class="section-title">3. Data Collection Paths</div>
+    <div class="section-subtitle">Topics, Services, Actions, TF 각각의 데이터 수집 경로</div>
+
+    <div class="collect-grid">
+
+      <!-- Topics -->
+      <div class="collect-card collect-topics">
+        <div class="collect-header">Topics</div>
+        <div class="collect-body">
+          <div class="path-step">
+            <span class="path-num">1</span>
+            <span><code>get_topic_names_and_types()</code><br>토픽 이름 + 메시지 타입 열거</span>
+          </div>
+          <div class="path-step">
+            <span class="path-num">2</span>
+            <span><code>get_publishers_info_by_topic()</code><br>발행 노드 이름 + 카운트</span>
+          </div>
+          <div class="path-step">
+            <span class="path-num">3</span>
+            <span><code>get_subscriptions_info_by_topic()</code><br>구독 노드 이름 + 카운트</span>
+          </div>
+          <div class="path-step">
+            <span class="path-num">4</span>
+            <span><code>ros2 topic hz</code> subprocess<br>Hz 측정 (4초 타임아웃, 순차)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Services -->
+      <div class="collect-card collect-services">
+        <div class="collect-header">Services</div>
+        <div class="collect-body">
+          <div class="path-step">
+            <span class="path-num">1</span>
+            <span><code>get_service_names_and_types()</code><br>서비스 이름 + 타입 열거</span>
+          </div>
+          <div class="path-step">
+            <span class="path-num">2</span>
+            <span><code>_build_node_maps()</code><br>전체 노드 순회하여 server/client 매핑</span>
+          </div>
+          <div class="path-step">
+            <span class="path-num">3</span>
+            <span>내부 노드 필터링<br><code>ros_web_monitor</code>, <code>_ros2cli_*</code> 제외</span>
+          </div>
+          <div class="path-step">
+            <span class="path-num">4</span>
+            <span><code>/_action/</code> 서비스 필터링<br>Action 내부 서비스 숨김</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="collect-card collect-actions">
+        <div class="collect-header">Actions</div>
+        <div class="collect-body">
+          <div class="path-step">
+            <span class="path-num">1</span>
+            <span><code>get_service_names_and_types()</code><br>전체 서비스 목록 조회</span>
+          </div>
+          <div class="path-step">
+            <span class="path-num">2</span>
+            <span><code>/_action/send_goal</code> 패턴 탐색<br>Action 감지 (안정적 대안)</span>
+          </div>
+          <div class="path-step">
+            <span class="path-num">3</span>
+            <span><code>_SendGoal</code> 접미사 제거<br>순수 Action 타입 추출</span>
+          </div>
+          <div class="path-step">
+            <span class="path-num">4</span>
+            <span><code>_build_node_maps()</code><br>Action Server/Client 노드 매핑</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- TF -->
+      <div class="collect-card collect-tf">
+        <div class="collect-header">TF Tree</div>
+        <div class="collect-body">
+          <div class="path-step">
+            <span class="path-num">1</span>
+            <span><code>/tf</code> 토픽 구독<br>동적 TF (QoS depth=100)</span>
+          </div>
+          <div class="path-step">
+            <span class="path-num">2</span>
+            <span><code>/tf_static</code> 토픽 구독<br>정적 TF (TRANSIENT_LOCAL)</span>
+          </div>
+          <div class="path-step">
+            <span class="path-num">3</span>
+            <span><code>_tf_frames</code> dict<br>child &rarr; parent 매핑 축적</span>
+          </div>
+          <div class="path-step">
+            <span class="path-num">4</span>
+            <span><code>build_subtree()</code><br>루트 프레임부터 계층 트리 구축</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===== 4. THREADING MODEL ===== -->
+  <div class="section">
+    <div class="section-title">4. Threading Model</div>
+    <div class="section-subtitle">3개 스레드의 역할과 생명주기</div>
+
+    <div class="card">
+      <div class="thread-diagram">
+
+        <!-- Main Thread -->
+        <div class="thread-lane thread-main">
+          <div class="thread-title">Main Thread</div>
+          <div class="thread-body">
+            <div class="step-item">Flask 서버 시작</div>
+            <div class="step-item">HTTP 요청 수신</div>
+            <div class="step-item">RosMonitor API 호출</div>
+            <div class="step-item">JSON 응답 반환</div>
+            <div class="loop-marker">&#8635; 요청마다 반복</div>
+          </div>
+        </div>
+
+        <!-- Spin Thread -->
+        <div class="thread-lane thread-spin">
+          <div class="thread-title">Spin Thread (daemon)</div>
+          <div class="thread-body">
+            <div class="step-item"><code>rclpy.spin_once()</code></div>
+            <div class="step-item">TF 콜백 실행</div>
+            <div class="step-item"><code>_tf_frames</code> 갱신</div>
+            <div class="step-item">timeout 0.1s</div>
+            <div class="loop-marker">&#8635; active 동안 반복</div>
+          </div>
+        </div>
+
+        <!-- Hz Thread -->
+        <div class="thread-lane thread-hz">
+          <div class="thread-title">Hz Thread (daemon)</div>
+          <div class="thread-body">
+            <div class="step-item">발행 토픽 목록 조회</div>
+            <div class="step-item">각 토픽에 대해:</div>
+            <div class="step-item" style="margin-left:12px;"><code>ros2 topic hz</code> subprocess</div>
+            <div class="step-item" style="margin-left:12px;">4초 타임아웃 후 kill</div>
+            <div class="step-item" style="margin-left:12px;"><code>_hz_cache</code> 갱신</div>
+            <div class="step-item">2초 대기</div>
+            <div class="loop-marker">&#8635; active 동안 반복</div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="footnote" style="margin-top:16px; text-align:center;">
+        Spin Thread와 Hz Thread는 <code>activate()</code> 시 생성, <code>deactivate()</code> 시 <code>self._active = False</code>로 종료.
+        모두 <strong>daemon thread</strong>이므로 프로세스 종료 시 자동 정리.
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 5. API REFERENCE ===== -->
+  <div class="section">
+    <div class="section-title">5. API Endpoints</div>
+    <div class="section-subtitle">Flask 서버가 제공하는 REST API</div>
+
+    <div class="card" style="padding:0; overflow:hidden; border-radius:10px;">
+      <table class="flow-table">
+        <thead>
+          <tr>
+            <th style="width:90px;">Method</th>
+            <th style="width:160px;">Endpoint</th>
+            <th>Parameters</th>
+            <th>Response</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="method-badge method-post">POST</span></td>
+            <td><code>/api/activate</code></td>
+            <td><code>{"domain_id": int}</code></td>
+            <td><code>{"status":"ok", "domain_id": int}</code></td>
+          </tr>
+          <tr>
+            <td><span class="method-badge method-post">POST</span></td>
+            <td><code>/api/deactivate</code></td>
+            <td>&mdash;</td>
+            <td><code>{"status":"ok"}</code></td>
+          </tr>
+          <tr>
+            <td><span class="method-badge method-get">GET</span></td>
+            <td><code>/api/status</code></td>
+            <td>&mdash;</td>
+            <td><code>{"active": bool, "domain_id": int}</code></td>
+          </tr>
+          <tr>
+            <td><span class="method-badge method-get">GET</span></td>
+            <td><code>/api/topics</code></td>
+            <td>&mdash;</td>
+            <td><code>[{name, type, publishers, subscribers, hz, pub_nodes, sub_nodes}]</code></td>
+          </tr>
+          <tr>
+            <td><span class="method-badge method-get">GET</span></td>
+            <td><code>/api/services</code></td>
+            <td>&mdash;</td>
+            <td><code>[{name, type, server_nodes, client_nodes}]</code></td>
+          </tr>
+          <tr>
+            <td><span class="method-badge method-get">GET</span></td>
+            <td><code>/api/actions</code></td>
+            <td>&mdash;</td>
+            <td><code>[{name, type, server_nodes, client_nodes}]</code></td>
+          </tr>
+          <tr>
+            <td><span class="method-badge method-get">GET</span></td>
+            <td><code>/api/tf</code></td>
+            <td>&mdash;</td>
+            <td><code>{"frames":[{child,parent}], "tree":[tree_nodes]}</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ===== 6. FRONTEND ARCHITECTURE ===== -->
+  <div class="section">
+    <div class="section-title">6. Frontend Architecture</div>
+    <div class="section-subtitle">index.html 대시보드의 구성과 동작 흐름</div>
+
+    <div class="card">
+      <div class="diagram">
+
+        <!-- Header row -->
+        <div class="block b-browser" style="min-width:400px;">
+          Header
+          <span class="block-label">DOMAIN ID 입력 + Activate/Deactivate + Refresh + Status Badge</span>
+        </div>
+
+        <div class="arrow-down"><span class="arrow-head">&#9660;</span></div>
+
+        <!-- 4 panels -->
+        <div class="diagram-h" style="gap:12px;">
+          <div class="block block-sm b-flask">
+            Topics
+            <span class="block-label">이름 / 타입 / Pub-Sub / Hz</span>
+          </div>
+          <div class="block block-sm b-monitor">
+            Services
+            <span class="block-label">이름 / 타입</span>
+          </div>
+          <div class="block block-sm b-ros">
+            Actions
+            <span class="block-label">이름 / 타입</span>
+          </div>
+          <div class="block block-sm b-data">
+            TF Tree
+            <span class="block-label">parent-child 트리</span>
+          </div>
+        </div>
+
+        <div class="arrow-down"><span class="arrow-head">&#9660;</span></div>
+
+        <!-- Expandable detail -->
+        <div class="block b-gray" style="min-width:400px;">
+          Expandable Node Detail (&#9654; 클릭)
+          <span class="block-label">각 행 클릭 &rarr; Pub/Sub/Server/Client 노드 이름 펼침</span>
+        </div>
+
+      </div>
+
+      <div style="margin-top:16px; font-size:13px; color:#555; line-height:1.7;">
+        <strong>자동 갱신:</strong> 5초 (<code>setInterval(refreshAll, 5000)</code>)<br>
+        <strong>수동 갱신:</strong> Refresh 버튼 클릭 &rarr; <code>manualRefresh()</code> &rarr; 즉시 <code>refreshAll()</code> 호출 + 타이머 리셋<br>
+        <strong>병렬 호출:</strong> <code>Promise.all([topics, services, actions, tf])</code><br>
+        <strong>펼침 상태 유지:</strong> <code>expanded</code> Set에 이름을 기록하여 갱신 후에도 상태 보존
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 7. NODE MAP BUILDING ===== -->
+  <div class="section">
+    <div class="section-title">7. Node Map Building</div>
+    <div class="section-subtitle">_build_node_maps() &mdash; 서비스/액션의 노드 이름을 수집하는 핵심 로직</div>
+
+    <div class="card">
+      <div class="diagram">
+
+        <div class="block b-monitor" style="min-width:280px;">
+          _build_node_maps()
+          <span class="block-label">모든 ROS2 노드를 순회</span>
+        </div>
+
+        <div class="arrow-down"><span class="arrow-head">&#9660;</span></div>
+
+        <div class="diagram-h" style="gap:24px;">
+
+          <div style="text-align:center;">
+            <div class="block block-sm b-flask">
+              get_service_names_and<br>_types_by_node()
+            </div>
+            <div class="arrow-down"><span class="arrow-head">&#9660;</span></div>
+            <div class="block block-sm b-data" style="background:#dbeafe;">
+              server_map
+              <span class="block-label">service &rarr; [server nodes]</span>
+            </div>
+          </div>
+
+          <div style="text-align:center;">
+            <div class="block block-sm b-ros">
+              get_client_names_and<br>_types_by_node()
+            </div>
+            <div class="arrow-down"><span class="arrow-head">&#9660;</span></div>
+            <div class="block block-sm b-data" style="background:#fef3c7;">
+              client_map
+              <span class="block-label">service &rarr; [client nodes]</span>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="arrow-down"><span class="arrow-head">&#9660;</span></div>
+
+        <div class="diagram-h" style="gap:16px;">
+          <div class="block block-sm b-gray">get_services()</div>
+          <div class="block block-sm b-gray">get_actions()</div>
+        </div>
+
+      </div>
+
+      <div class="footnote" style="text-align:center;">
+        내부 노드 (<code>ros_web_monitor</code>, <code>_ros2cli_*</code>)는 순회 시 건너뛰어 결과에 포함되지 않음.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  ROS2 State Observer &mdash; Architecture Document &mdash; Built with Claude
+</div>
+
+</body>
+</html>
