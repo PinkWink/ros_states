@@ -394,7 +394,7 @@
         <!-- Browser -->
         <div class="block b-browser">
           Browser (index.html)
-          <span class="block-label">JavaScript &mdash; 5초 자동 갱신 + 수동 Refresh</span>
+          <span class="block-label">JavaScript &mdash; 설정 가능한 자동 갱신 + 수동 Refresh</span>
         </div>
 
         <div class="arrow-bidir">
@@ -416,7 +416,7 @@
         <!-- ROS Monitor -->
         <div class="block b-monitor" style="min-width: 260px;">
           RosMonitor (ros_monitor.py)
-          <span class="block-label">rclpy Graph API + subprocess + TF sub</span>
+          <span class="block-label">rclpy Graph API + Service Client + TF sub</span>
         </div>
 
         <div class="arrow-bidir">
@@ -430,6 +430,7 @@
           <div class="block block-sm b-ros">Services</div>
           <div class="block block-sm b-ros">Actions</div>
           <div class="block block-sm b-ros">TF</div>
+          <div class="block block-sm b-ros">Parameters</div>
         </div>
         <div style="text-align:center; margin-top:4px;">
           <span style="font-size:11px; color:#8b5cf6; font-weight:600;">ROS2 Network (DDS)</span>
@@ -445,16 +446,30 @@
     <div class="section-subtitle">프로젝트 파일 트리 및 역할</div>
 
     <div class="file-tree">
-<span class="dir">ros_states/</span>
+<span class="dir">ros_states/</span>                     <span class="comment"># ROS2 패키지 루트</span>
 <span class="pipe">|</span>
-<span class="pipe">|--</span> <span class="file">app.py</span>              <span class="comment"># Flask 웹 서버 + API 엔드포인트 (port 5050)</span>
-<span class="pipe">|--</span> <span class="file">ros_monitor.py</span>      <span class="comment"># ROS2 모니터링 코어 (rclpy + subprocess + TF)</span>
-<span class="pipe">|--</span> <span class="file">run.sh</span>              <span class="comment"># conda 환경 활성화 + 서버 실행 스크립트</span>
-<span class="pipe">|--</span> <span class="file">history.html</span>        <span class="comment"># 빌드 히스토리 (독립 HTML, Flask 무관)</span>
-<span class="pipe">|--</span> <span class="file">architecture.html</span>   <span class="comment"># 코드 구조 다이어그램 (현재 페이지)</span>
+<span class="pipe">|--</span> <span class="file">package.xml</span>             <span class="comment"># ROS2 패키지 매니페스트</span>
+<span class="pipe">|--</span> <span class="file">setup.py</span>                <span class="comment"># ament_python 빌드 설정</span>
+<span class="pipe">|--</span> <span class="file">setup.cfg</span>               <span class="comment"># 스크립트 설치 경로</span>
+<span class="pipe">|--</span> <span class="file">app.py</span>                  <span class="comment"># 레거시 엔트리포인트 (래퍼)</span>
+<span class="pipe">|--</span> <span class="file">ros_monitor.py</span>          <span class="comment"># 레거시 모듈 (래퍼)</span>
+<span class="pipe">|--</span> <span class="file">run.sh</span>                  <span class="comment"># conda 환경 실행 스크립트 (인자 전달 지원)</span>
+<span class="pipe">|--</span> <span class="file">history.html</span>            <span class="comment"># 빌드 히스토리 (독립 HTML)</span>
+<span class="pipe">|--</span> <span class="file">architecture.html</span>       <span class="comment"># 코드 구조 다이어그램 (현재 페이지)</span>
+<span class="pipe">|</span>
+<span class="pipe">|--</span> <span class="dir">ros_states/</span>             <span class="comment"># Python 모듈</span>
+<span class="pipe">|   |--</span> <span class="file">__init__.py</span>
+<span class="pipe">|   |--</span> <span class="file">app.py</span>              <span class="comment"># Flask 서버 + API (parameter 포함, argparse)</span>
+<span class="pipe">|   |--</span> <span class="file">ros_monitor.py</span>      <span class="comment"># ROS2 모니터링 코어 + 파라미터 API (rclpy service client)</span>
 <span class="pipe">|</span>
 <span class="pipe">|--</span> <span class="dir">templates/</span>
-<span class="pipe">|   |--</span> <span class="file">index.html</span>      <span class="comment"># 대시보드 프론트엔드 (Flask 템플릿)</span>
+<span class="pipe">|   |--</span> <span class="file">index.html</span>          <span class="comment"># 대시보드 프론트엔드 (5패널 + Parameters)</span>
+<span class="pipe">|</span>
+<span class="pipe">|--</span> <span class="dir">launch/</span>
+<span class="pipe">|   |--</span> <span class="file">ros_states.launch.py</span> <span class="comment"># ROS2 Launch (port, interval, browser, domain)</span>
+<span class="pipe">|</span>
+<span class="pipe">|--</span> <span class="dir">resource/</span>
+<span class="pipe">    |--</span> <span class="file">ros_states</span>          <span class="comment"># ament index 마커</span>
     </div>
   </div>
 
@@ -557,6 +572,29 @@
         </div>
       </div>
 
+      <!-- Parameters -->
+      <div class="collect-card" style="grid-column: 1 / -1;">
+        <div class="collect-header" style="background: #e91e63;">Parameters</div>
+        <div class="collect-body">
+          <div class="path-step">
+            <span class="path-num">1</span>
+            <span><code>get_node_list()</code><br>rclpy graph API로 외부 노드 이름 열거</span>
+          </div>
+          <div class="path-step">
+            <span class="path-num">2</span>
+            <span><code>ListParameters</code> 서비스 호출<br>선택된 노드의 파라미터 이름 목록 (rclpy service client)</span>
+          </div>
+          <div class="path-step">
+            <span class="path-num">3</span>
+            <span><code>GetParameters</code> 서비스 호출<br>각 파라미터의 <code>ParameterType</code> 기반 타입과 값 조회 (병렬)</span>
+          </div>
+          <div class="path-step">
+            <span class="path-num">4</span>
+            <span><code>SetParameters</code> 서비스 호출<br>파라미터 값 변경 &mdash; 현재 타입에 맞게 자동 캐스팅 (사용자 요청 시)</span>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -586,6 +624,7 @@
           <div class="thread-body">
             <div class="step-item"><code>rclpy.spin_once()</code></div>
             <div class="step-item">TF 콜백 실행</div>
+            <div class="step-item">서비스 클라이언트 콜백 처리</div>
             <div class="step-item"><code>_tf_frames</code> 갱신</div>
             <div class="step-item">timeout 0.1s</div>
             <div class="loop-marker">&#8635; active 동안 반복</div>
@@ -673,6 +712,36 @@
             <td>&mdash;</td>
             <td><code>{"frames":[{child,parent}], "tree":[tree_nodes]}</code></td>
           </tr>
+          <tr>
+            <td><span class="method-badge method-get">GET</span></td>
+            <td><code>/api/config</code></td>
+            <td>&mdash;</td>
+            <td><code>{"port": int, "update_interval": int}</code></td>
+          </tr>
+          <tr>
+            <td><span class="method-badge method-get">GET</span></td>
+            <td><code>/api/nodes</code></td>
+            <td>&mdash;</td>
+            <td><code>["node_name", ...]</code></td>
+          </tr>
+          <tr>
+            <td><span class="method-badge method-get">GET</span></td>
+            <td><code>/api/params/list</code></td>
+            <td><code>?node=/node_name</code></td>
+            <td><code>["param_name", ...]</code></td>
+          </tr>
+          <tr>
+            <td><span class="method-badge method-get">GET</span></td>
+            <td><code>/api/params/get</code></td>
+            <td><code>?node=...&amp;param=...</code></td>
+            <td><code>{"type":"String", "value":"..."}</code></td>
+          </tr>
+          <tr>
+            <td><span class="method-badge method-post">POST</span></td>
+            <td><code>/api/params/set</code></td>
+            <td><code>{"node":..., "param":..., "value":...}</code></td>
+            <td><code>{"success": bool, "message":"..."}</code></td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -716,6 +785,14 @@
 
         <div class="arrow-down"><span class="arrow-head">&#9660;</span></div>
 
+        <!-- Parameters panel (full width) -->
+        <div class="block b-browser" style="min-width:400px;">
+          Parameters (Full Width)
+          <span class="block-label">노드 선택 &rarr; 파라미터 목록 &rarr; 인라인 편집 (Edit/Set/Cancel)</span>
+        </div>
+
+        <div class="arrow-down"><span class="arrow-head">&#9660;</span></div>
+
         <!-- Expandable detail -->
         <div class="block b-gray" style="min-width:400px;">
           Expandable Node Detail (&#9654; 클릭)
@@ -725,10 +802,11 @@
       </div>
 
       <div style="margin-top:16px; font-size:13px; color:#555; line-height:1.7;">
-        <strong>자동 갱신:</strong> 5초 (<code>setInterval(refreshAll, 5000)</code>)<br>
+        <strong>자동 갱신:</strong> 설정 가능한 주기 (<code>update_interval</code> 파라미터, 기본 5000ms)<br>
         <strong>수동 갱신:</strong> Refresh 버튼 클릭 &rarr; <code>manualRefresh()</code> &rarr; 즉시 <code>refreshAll()</code> 호출 + 타이머 리셋<br>
         <strong>병렬 호출:</strong> <code>Promise.all([topics, services, actions, tf])</code><br>
-        <strong>펼침 상태 유지:</strong> <code>expanded</code> Set에 이름을 기록하여 갱신 후에도 상태 보존
+        <strong>펼침 상태 유지:</strong> <code>expanded</code> Set에 이름을 기록하여 갱신 후에도 상태 보존<br>
+        <strong>파라미터:</strong> 자동 갱신 없음 &mdash; 노드 선택 또는 &laquo;&#8635; Params&raquo; 버튼 클릭 시에만 갱신 &rarr; <code>/api/params/list</code> + <code>/api/params/get</code> 병렬 조회 &rarr; 인라인 편집 &rarr; <code>/api/params/set</code>
       </div>
     </div>
   </div>

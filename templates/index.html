@@ -122,6 +122,9 @@
     border: 1px solid #e0e4e8;
     overflow: hidden;
   }
+  .card-full {
+    grid-column: 1 / -1;
+  }
   .card-header {
     padding: 10px 16px;
     font-size: 14px;
@@ -311,6 +314,101 @@
     color: #999;
     font-size: 13px;
   }
+
+  /* Parameters panel */
+  .param-toolbar {
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid #f0f1f3;
+    flex-wrap: wrap;
+  }
+  .param-toolbar select {
+    padding: 5px 10px;
+    border: 1px solid #d0d4d8;
+    border-radius: 6px;
+    font-size: 12px;
+    outline: none;
+    max-width: 280px;
+    flex: 1;
+  }
+  .param-toolbar select:focus {
+    border-color: #1a73e8;
+  }
+  .param-toolbar .btn-sm {
+    padding: 5px 12px;
+    font-size: 11px;
+    border-radius: 5px;
+    border: 1px solid #d0d4d8;
+    background: #fff;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .param-toolbar .btn-sm:hover {
+    background: #f8f9fa;
+  }
+  .param-value-cell {
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 11px;
+    color: #1e8e3e;
+  }
+  .param-type-cell {
+    font-size: 10px;
+    color: #888;
+    text-transform: lowercase;
+  }
+  .param-edit-input {
+    padding: 3px 8px;
+    border: 1px solid #1a73e8;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    width: 140px;
+    outline: none;
+  }
+  .param-btn-set {
+    padding: 3px 10px;
+    font-size: 10px;
+    background: #1a73e8;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .param-btn-set:hover { background: #1557b0; }
+  .param-btn-cancel {
+    padding: 3px 10px;
+    font-size: 10px;
+    background: #fff;
+    color: #666;
+    border: 1px solid #d0d4d8;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .param-msg {
+    font-size: 11px;
+    padding: 6px 12px;
+    margin: 0;
+  }
+  .param-msg.success { color: #1e8e3e; }
+  .param-msg.error { color: #c5221f; }
+  .param-action-cell {
+    white-space: nowrap;
+  }
+  .param-action-cell button {
+    padding: 2px 8px;
+    font-size: 10px;
+    border: 1px solid #d0d4d8;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+    color: #555;
+  }
+  .param-action-cell button:hover {
+    background: #f0f1f3;
+  }
 </style>
 </head>
 <body>
@@ -366,11 +464,34 @@
       <div class="empty-msg">Activate to view TF tree</div>
     </div>
   </div>
+
+  <!-- Parameters -->
+  <div class="card card-full">
+    <div class="card-header">
+      Parameters <span class="count" id="paramCount">0</span>
+    </div>
+    <div class="param-toolbar" id="paramToolbar" style="display:none">
+      <label style="font-size:12px;font-weight:500;color:#555;">Node:</label>
+      <select id="paramNodeSelect" onchange="onNodeSelect()">
+        <option value="">-- Select a node --</option>
+      </select>
+      <button class="btn-sm" onclick="refreshNodeList()">&#8635; Nodes</button>
+      <button class="btn-sm" onclick="onNodeSelect()">&#8635; Params</button>
+      <label style="font-size:12px;color:#555;margin-left:12px;cursor:pointer;user-select:none;">
+        <input type="checkbox" id="showQosOverrides" onchange="onNodeSelect()" style="margin-right:4px;vertical-align:middle;">
+        Show qos_overrides
+      </label>
+    </div>
+    <div class="card-body" id="paramBody" style="max-height:350px;">
+      <div class="empty-msg">Activate to view parameters</div>
+    </div>
+  </div>
 </div>
 
 <script>
 let refreshTimer = null;
 let isActive = false;
+let updateInterval = {{ update_interval }};
 
 // Track expanded state across refreshes
 const expanded = {
@@ -378,6 +499,10 @@ const expanded = {
   services: new Set(),
   actions: new Set(),
 };
+
+// Parameter state
+let paramMsg = '';
+let paramMsgType = '';
 
 async function activate() {
   const domainId = document.getElementById('domainId').value;
@@ -392,6 +517,7 @@ async function activate() {
       isActive = true;
       updateUI();
       startRefresh();
+      refreshNodeList();
     }
   } catch (e) {
     console.error('Activate failed:', e);
@@ -414,6 +540,7 @@ function updateUI() {
   const btnDeact = document.getElementById('btnDeactivate');
   const btnRefresh = document.getElementById('btnRefresh');
   const domainInput = document.getElementById('domainId');
+  const paramToolbar = document.getElementById('paramToolbar');
 
   if (isActive) {
     badge.textContent = 'Active (ID: ' + domainInput.value + ')';
@@ -422,6 +549,7 @@ function updateUI() {
     btnDeact.style.display = '';
     btnRefresh.style.display = '';
     domainInput.disabled = true;
+    paramToolbar.style.display = '';
   } else {
     badge.textContent = 'Inactive';
     badge.className = 'status-badge status-inactive';
@@ -429,6 +557,7 @@ function updateUI() {
     btnDeact.style.display = 'none';
     btnRefresh.style.display = 'none';
     domainInput.disabled = false;
+    paramToolbar.style.display = 'none';
   }
 }
 
@@ -436,9 +565,11 @@ function clearPanels() {
   ['topicBody','serviceBody','actionBody','tfBody'].forEach(id => {
     document.getElementById(id).innerHTML = '<div class="empty-msg">Activate to view data</div>';
   });
-  ['topicCount','serviceCount','actionCount','tfCount'].forEach(id => {
+  ['topicCount','serviceCount','actionCount','tfCount','paramCount'].forEach(id => {
     document.getElementById(id).textContent = '0';
   });
+  document.getElementById('paramBody').innerHTML = '<div class="empty-msg">Activate to view parameters</div>';
+  document.getElementById('paramNodeSelect').innerHTML = '<option value="">-- Select a node --</option>';
   expanded.topics.clear();
   expanded.services.clear();
   expanded.actions.clear();
@@ -447,7 +578,7 @@ function clearPanels() {
 function startRefresh() {
   if (refreshTimer) clearInterval(refreshTimer);
   refreshAll();
-  refreshTimer = setInterval(refreshAll, 5000);
+  refreshTimer = setInterval(refreshAll, updateInterval);
 }
 
 function stopRefresh() {
@@ -462,10 +593,9 @@ async function manualRefresh() {
   const btn = document.getElementById('btnRefresh');
   btn.disabled = true;
   btn.classList.add('spinning');
-  // Reset the auto-refresh timer so next auto-refresh is 5s from now
   stopRefresh();
   await refreshAll();
-  refreshTimer = setInterval(refreshAll, 5000);
+  refreshTimer = setInterval(refreshAll, updateInterval);
   btn.classList.remove('spinning');
   btn.disabled = false;
 }
@@ -670,6 +800,114 @@ function renderTFNode(node, isRoot) {
   return html;
 }
 
+// --- Parameters ---
+
+async function refreshNodeList() {
+  if (!isActive) return;
+  try {
+    const res = await fetch('/api/nodes');
+    const nodes = await res.json();
+    const select = document.getElementById('paramNodeSelect');
+    const current = select.value;
+    select.innerHTML = '<option value="">-- Select a node --</option>';
+    for (const n of nodes) {
+      const opt = document.createElement('option');
+      opt.value = n;
+      opt.textContent = n;
+      select.appendChild(opt);
+    }
+    if (current && nodes.includes(current)) {
+      select.value = current;
+    }
+    document.getElementById('paramCount').textContent = nodes.length + ' nodes';
+  } catch (e) {}
+}
+
+async function onNodeSelect() {
+  const select = document.getElementById('paramNodeSelect');
+  const nodeName = select.value;
+  if (!nodeName) {
+    document.getElementById('paramBody').innerHTML = '<div class="empty-msg">Select a node to view parameters</div>';
+    return;
+  }
+  document.getElementById('paramBody').innerHTML = '<div class="empty-msg">Loading parameters...</div>';
+  try {
+    const res = await fetch('/api/params/list?node=' + encodeURIComponent(nodeName));
+    const allParams = await res.json();
+    const showQos = document.getElementById('showQosOverrides').checked;
+    const params = showQos ? allParams : allParams.filter(p => !p.startsWith('qos_overrides.'));
+    if (params.length === 0) {
+      document.getElementById('paramBody').innerHTML = '<div class="empty-msg">No parameters found for this node</div>';
+      return;
+    }
+    // Fetch values for all params in parallel
+    const valuePromises = params.map(p =>
+      fetch('/api/params/get?node=' + encodeURIComponent(nodeName) + '&param=' + encodeURIComponent(p))
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null)
+    );
+    const values = await Promise.all(valuePromises);
+
+    let html = '<table><thead><tr><th>Parameter</th><th>Type</th><th>Value</th><th>Action</th></tr></thead><tbody>';
+    for (let i = 0; i < params.length; i++) {
+      const p = params[i];
+      const v = values[i];
+      const typeStr = v ? v.type : '-';
+      const valueStr = v ? v.value : '-';
+      html += '<tr>';
+      html += '<td class="name-cell">' + esc(p) + '</td>';
+      html += '<td class="param-type-cell">' + esc(typeStr) + '</td>';
+      html += '<td class="param-value-cell" id="pval_' + i + '">' + esc(valueStr) + '</td>';
+      html += '<td class="param-action-cell" id="pact_' + i + '">';
+      html += '<button onclick="startEdit(\'' + escAttr(nodeName) + '\',\'' + escAttr(p) + '\',' + i + ',\'' + escAttr(valueStr) + '\')">Edit</button>';
+      html += '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    if (paramMsg) {
+      html += '<div class="param-msg ' + paramMsgType + '">' + esc(paramMsg) + '</div>';
+      paramMsg = '';
+      paramMsgType = '';
+    }
+    document.getElementById('paramBody').innerHTML = html;
+  } catch (e) {
+    document.getElementById('paramBody').innerHTML = '<div class="empty-msg">Error loading parameters</div>';
+  }
+}
+
+function startEdit(nodeName, paramName, idx, currentValue) {
+  const valCell = document.getElementById('pval_' + idx);
+  const actCell = document.getElementById('pact_' + idx);
+  valCell.innerHTML = '<input class="param-edit-input" id="pedit_' + idx + '" value="' + escAttr(currentValue) + '" onkeydown="if(event.key===\'Enter\')doSet(\'' + escAttr(nodeName) + '\',\'' + escAttr(paramName) + '\',' + idx + ')">';
+  actCell.innerHTML = '<button class="param-btn-set" onclick="doSet(\'' + escAttr(nodeName) + '\',\'' + escAttr(paramName) + '\',' + idx + ')">Set</button> ' +
+    '<button class="param-btn-cancel" onclick="onNodeSelect()">Cancel</button>';
+  document.getElementById('pedit_' + idx).focus();
+}
+
+async function doSet(nodeName, paramName, idx) {
+  const input = document.getElementById('pedit_' + idx);
+  const newValue = input.value;
+  try {
+    const res = await fetch('/api/params/set', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({node: nodeName, param: paramName, value: newValue})
+    });
+    const result = await res.json();
+    if (result.success) {
+      paramMsg = 'Set ' + paramName + ' = ' + newValue;
+      paramMsgType = 'success';
+    } else {
+      paramMsg = 'Error: ' + (result.message || 'Failed to set parameter');
+      paramMsgType = 'error';
+    }
+  } catch (e) {
+    paramMsg = 'Error: Network failure';
+    paramMsgType = 'error';
+  }
+  onNodeSelect();
+}
+
 function esc(s) {
   const d = document.createElement('div');
   d.textContent = s;
@@ -677,8 +915,13 @@ function esc(s) {
 }
 
 function escAttr(s) {
-  return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
+
+// Load config on startup
+fetch('/api/config').then(r => r.json()).then(cfg => {
+  if (cfg.update_interval) updateInterval = cfg.update_interval;
+}).catch(() => {});
 </script>
 </body>
 </html>
